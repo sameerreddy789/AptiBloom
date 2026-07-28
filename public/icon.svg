@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">AptiBloom sprout</title>
+  <rect width="512" height="512" rx="128" fill="#4f46e5"/>
+  <circle cx="256" cy="256" r="166" fill="#ffffff" opacity=".12"/>
+  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M162 392h188"/>
+    <path d="M256 392V223"/>
+    <path d="M256 224c-88 0-137-58-137-137 79 0 137 58 137 137Z"/>
+    <path d="M256 314c0-83 59-140 139-140 0 81-58 140-139 140Z"/>
+  </g>
+</svg>
