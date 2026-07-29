@@ -23,11 +23,13 @@ import {
   evaluateAnswer,
   findNearNeighbour,
   getQuestion,
-  publicQuestion
+  publicQuestion,
+  supportsQuestionVersion
 } from './server/questions.js';
 import {
   TOPICS,
   applyAttempt,
+  assessmentSignals,
   completeMission,
   dashboardFor,
   missionPayload,
@@ -247,6 +249,7 @@ async function handleApi(request, response, url) {
       type,
       topicId: topicId || recommendationFor(auth.user).topicId,
       questionIds: questions.map((question) => question.id),
+      questionVersions: Object.fromEntries(questions.map((question) => [question.id, question.version])),
       retryIds: [],
       attempts: [],
       hints: [],
@@ -263,7 +266,11 @@ async function handleApi(request, response, url) {
   if (method === 'GET' && missionMatch) {
     const mission = missionFromDatabase(auth.database, missionMatch[1], auth.user.id);
     if (!mission) return apiError(response, 404, 'MISSION_NOT_FOUND', 'That mission could not be found.');
-    const questions = mission.questionIds.map(getQuestion).filter(Boolean);
+    const questions = mission.questionIds.map(getQuestion);
+    const unavailableQuestion = questions.find((question, index) =>
+      !question || !supportsQuestionVersion(question, mission.questionVersions?.[mission.questionIds[index]] ?? 1)
+    );
+    if (unavailableQuestion !== undefined) return apiError(response, 409, 'MISSION_CONTENT_UNAVAILABLE', 'A saved question version is no longer available. Start a fresh mission.');
     return jsonResponse(response, 200, missionPayload(mission, questions, auth.user));
   }
 
@@ -296,15 +303,19 @@ async function handleApi(request, response, url) {
       if (!question || ![...mission.questionIds, ...mission.retryIds].includes(question.id)) return { error: 'QUESTION_NOT_FOUND' };
       if (mission.attempts.some((attempt) => attempt.questionId === question.id)) return { error: 'ALREADY_ANSWERED' };
 
-      const correct = evaluateAnswer(question, body.answer);
+      const deliveredVersion = mission.questionVersions?.[question.id] ?? 1;
+      if (!supportsQuestionVersion(question, deliveredVersion)) return { error: 'QUESTION_VERSION_UNAVAILABLE' };
+      if (body.questionVersion !== undefined && Number(body.questionVersion) !== deliveredVersion) return { error: 'QUESTION_VERSION_MISMATCH' };
+      const correct = evaluateAnswer(question, body.answer, deliveredVersion);
       const attempt = {
         id: randomUUID(),
         missionId: mission.id,
         questionId: question.id,
-        questionVersion: question.version,
+        questionVersion: deliveredVersion,
         topicId: question.topicId,
         concept: question.concept,
         difficulty: question.difficulty,
+        contentStatus: question.status,
         correct,
         suppliedAnswer: body.answer,
         hintCount: Math.max(0, Number(body.hintCount || 0)),
@@ -325,7 +336,9 @@ async function handleApi(request, response, url) {
         const neighbour = findNearNeighbour(question, [...mission.questionIds, ...mission.retryIds]);
         if (neighbour) {
           mission.retryIds.push(neighbour.id);
-          retryQuestion = publicQuestion(neighbour);
+          mission.questionVersions ??= {};
+          mission.questionVersions[neighbour.id] = neighbour.version;
+          retryQuestion = publicQuestion(neighbour, { version: neighbour.version });
         }
       }
 
@@ -348,6 +361,8 @@ async function handleApi(request, response, url) {
       MISSION_NOT_FOUND: [404, 'That mission could not be found.'],
       MISSION_COMPLETE: [409, 'This mission has already been completed.'],
       QUESTION_NOT_FOUND: [404, 'That question is not part of this mission.'],
+      QUESTION_VERSION_UNAVAILABLE: [409, 'This saved question version is no longer available. Start a fresh mission.'],
+      QUESTION_VERSION_MISMATCH: [409, 'This question changed after it was opened. Reload the mission before answering.'],
       ALREADY_ANSWERED: [409, 'This question has already been answered in the mission.']
     };
     if (result?.error) return apiError(response, errors[result.error]?.[0] || 400, result.error, errors[result.error]?.[1] || 'Unable to submit this answer.');
@@ -376,8 +391,9 @@ async function handleApi(request, response, url) {
     const assessment = {
       id: randomUUID(),
       userId: auth.user.id,
-      blueprint: 'prototype-mixed-v1',
+      blueprint: 'topic-sample-v2',
       questionIds: questions.map((question) => question.id),
+      questionVersions: Object.fromEntries(questions.map((question) => [question.id, question.version])),
       durationSeconds: 12 * 60,
       startedAt: isoNow(),
       submittedAt: null,
@@ -391,7 +407,10 @@ async function handleApi(request, response, url) {
       title: 'Mixed placement sprint',
       durationSeconds: assessment.durationSeconds,
       startedAt: assessment.startedAt,
-      questions: questions.map((question, index) => ({ number: index + 1, ...publicQuestion(question, { hideLabels: true }) }))
+      questions: questions.map((question, index) => ({
+        number: index + 1,
+        ...publicQuestion(question, { hideLabels: true, version: assessment.questionVersions?.[question.id] ?? 1 })
+      }))
     });
   }
 
@@ -399,7 +418,11 @@ async function handleApi(request, response, url) {
   if (method === 'GET' && assessmentMatch) {
     const assessment = assessmentFromDatabase(auth.database, assessmentMatch[1], auth.user.id);
     if (!assessment) return apiError(response, 404, 'ASSESSMENT_NOT_FOUND', 'That assessment could not be found.');
-    const questions = assessment.questionIds.map(getQuestion).filter(Boolean);
+    const questions = assessment.questionIds.map(getQuestion);
+    const unavailableQuestion = questions.find((question, index) =>
+      !question || !supportsQuestionVersion(question, assessment.questionVersions?.[assessment.questionIds[index]] ?? 1)
+    );
+    if (unavailableQuestion !== undefined) return apiError(response, 409, 'ASSESSMENT_CONTENT_UNAVAILABLE', 'A saved question version is no longer available. Start a fresh sprint.');
     return jsonResponse(response, 200, {
       id: assessment.id,
       title: 'Mixed placement sprint',
@@ -407,7 +430,10 @@ async function handleApi(request, response, url) {
       startedAt: assessment.startedAt,
       submittedAt: assessment.submittedAt,
       report: assessment.report,
-      questions: questions.map((question, index) => ({ number: index + 1, ...publicQuestion(question, { hideLabels: true }) }))
+      questions: questions.map((question, index) => ({
+        number: index + 1,
+        ...publicQuestion(question, { hideLabels: true, version: assessment.questionVersions?.[question.id] ?? 1 })
+      }))
     });
   }
 
@@ -419,23 +445,33 @@ async function handleApi(request, response, url) {
       if (!assessment) return { error: 'ASSESSMENT_NOT_FOUND' };
       if (assessment.submittedAt) return assessment.report;
       const answers = body.answers && typeof body.answers === 'object' ? body.answers : {};
-      const review = [];
-
+      const assessmentEntries = [];
       for (const questionId of assessment.questionIds) {
         const question = getQuestion(questionId);
-        if (!question) continue;
+        if (!question) return { error: 'ASSESSMENT_CONTENT_UNAVAILABLE' };
+        const deliveredVersion = assessment.questionVersions?.[questionId] ?? 1;
+        if (!supportsQuestionVersion(question, deliveredVersion)) return { error: 'ASSESSMENT_CONTENT_UNAVAILABLE' };
         const responseEntry = answers[questionId] && typeof answers[questionId] === 'object' && !Array.isArray(answers[questionId])
           ? answers[questionId]
           : { answer: answers[questionId] };
-        const correct = evaluateAnswer(question, responseEntry.answer);
+        if (responseEntry.questionVersion !== undefined && Number(responseEntry.questionVersion) !== deliveredVersion) {
+          return { error: 'QUESTION_VERSION_MISMATCH' };
+        }
+        assessmentEntries.push({ question, deliveredVersion, responseEntry });
+      }
+
+      const review = [];
+      for (const { question, deliveredVersion, responseEntry } of assessmentEntries) {
+        const correct = evaluateAnswer(question, responseEntry.answer, deliveredVersion);
         const attempt = {
           id: randomUUID(),
           missionId: assessment.id,
           questionId: question.id,
-          questionVersion: question.version,
+          questionVersion: deliveredVersion,
           topicId: question.topicId,
           concept: question.concept,
           difficulty: question.difficulty,
+          contentStatus: question.status,
           correct,
           suppliedAnswer: responseEntry.answer,
           hintCount: 0,
@@ -449,26 +485,16 @@ async function handleApi(request, response, url) {
         attempt.reward = { petals: reward.petals, xp: reward.xp };
         user.attempts.push(attempt);
         review.push({
-          question: publicQuestion(question, { hideLabels: false }),
+          question: publicQuestion(question, { hideLabels: false, version: deliveredVersion }),
           suppliedAnswer: responseEntry.answer,
           correct,
           correctAnswer: correctAnswerDisplay(question),
           solutionSteps: question.solution
         });
       }
+      user.attempts = user.attempts.slice(-2000);
 
-      const byTopic = TOPICS.map((topic) => {
-        const topicReview = review.filter((item) => item.question.topicId === topic.id);
-        const correct = topicReview.filter((item) => item.correct).length;
-        return {
-          topicId: topic.id,
-          name: topic.name,
-          correct,
-          total: topicReview.length,
-          accuracy: topicReview.length ? Math.round((correct / topicReview.length) * 100) : 0,
-          nextAction: correct / Math.max(1, topicReview.length) >= 0.75 ? 'Keep the method; train pace next.' : 'Return to an untimed Focus Run.'
-        };
-      });
+      const { byTopic, byDomain, readinessPolicy } = assessmentSignals(review, assessment.blueprint || 'prototype-mixed-v1');
       const correct = review.filter((item) => item.correct).length;
       assessment.submittedAt = isoNow();
       assessment.report = {
@@ -479,13 +505,20 @@ async function handleApi(request, response, url) {
         accuracy: review.length ? Math.round((correct / review.length) * 100) : 0,
         elapsedSeconds: Math.max(0, Number(body.elapsedSeconds || 0)),
         byTopic,
+        byDomain,
+        readinessPolicy,
         readiness: topicProgress(user).map((topic) => ({ topicId: topic.id, name: topic.name, mastery: topic.mastery, readiness: topic.readiness })),
         nextRecommendation: recommendationFor(user),
         review
       };
       return assessment.report;
     });
-    if (result?.error) return apiError(response, 404, result.error, 'That assessment could not be found.');
+    const assessmentErrors = {
+      ASSESSMENT_NOT_FOUND: [404, 'That assessment could not be found.'],
+      ASSESSMENT_CONTENT_UNAVAILABLE: [409, 'A saved question version is no longer available. Start a fresh sprint.'],
+      QUESTION_VERSION_MISMATCH: [409, 'A question changed after it was opened. Reload the sprint before submitting.']
+    };
+    if (result?.error) return apiError(response, assessmentErrors[result.error]?.[0] || 400, result.error, assessmentErrors[result.error]?.[1] || 'Unable to submit this assessment.');
     return jsonResponse(response, 200, result);
   }
 
@@ -608,8 +641,9 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(PORT, () => {
+  const summary = contentSummary();
   console.log(`AptiBloom is growing at http://localhost:${PORT}`);
-  console.log(`Loaded ${QUESTIONS.length} reviewed questions across ${TOPICS.length} topics.`);
+  console.log(`Loaded ${summary.total} questions (${summary.published} published, ${summary.pilot} pilot) across ${TOPICS.length} topics.`);
 });
 
 function shutdown() {

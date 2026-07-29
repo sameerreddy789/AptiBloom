@@ -1,16 +1,19 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { TOPIC_IDS } from './catalog.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'aptibloom.json');
+const CURRENT_SCHEMA_VERSION = 2;
+const LEGACY_PUBLISHED_QUESTION_ID = /^(?:pct|rat|grm)-\d+$/;
 let writeQueue = Promise.resolve();
 
 const isoNow = () => new Date().toISOString();
 
 function emptyDatabase() {
   return {
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     createdAt: isoNow(),
     users: {},
     sessions: {},
@@ -32,6 +35,7 @@ export function newTopicState() {
     sessions: [],
     mastery: 0,
     readiness: 0,
+    readinessEvidence: 0,
     state: 'unseen',
     reviewStage: 0,
     reviewDue: null,
@@ -69,11 +73,7 @@ function defaultUser({ name, email = null, isGuest = false }) {
       journeyXp: 0,
       petals: 0,
       weeklyDays: [],
-      topics: {
-        percentages: newTopicState(),
-        ratios: newTopicState(),
-        grammar: newTopicState()
-      }
+      topics: Object.fromEntries(TOPIC_IDS.map((topicId) => [topicId, newTopicState()]))
     },
     attempts: [],
     bookmarks: []
@@ -88,7 +88,7 @@ function ensureUserShape(user) {
   user.progress.petals ??= 0;
   user.progress.weeklyDays ??= [];
   user.progress.topics ??= {};
-  for (const topicId of ['percentages', 'ratios', 'grammar']) {
+  for (const topicId of TOPIC_IDS) {
     user.progress.topics[topicId] = {
       ...newTopicState(),
       ...(user.progress.topics[topicId] || {})
@@ -97,6 +97,31 @@ function ensureUserShape(user) {
   user.attempts ??= [];
   user.bookmarks ??= [];
   return user;
+}
+
+export function migrateDatabase(database) {
+  database.users ??= {};
+  for (const user of Object.values(database.users)) ensureUserShape(user);
+
+  if (Number(database.schemaVersion || 1) < 2) {
+    for (const user of Object.values(database.users)) {
+      const evidenceByTopic = {};
+      for (const attempt of user.attempts) {
+        if (attempt.isRetry || attempt.mode !== 'assessment') continue;
+        const published = attempt.contentStatus === 'published' ||
+          (!attempt.contentStatus && LEGACY_PUBLISHED_QUESTION_ID.test(String(attempt.questionId || '')));
+        if (!published || !attempt.topicId) continue;
+        evidenceByTopic[attempt.topicId] = (evidenceByTopic[attempt.topicId] || 0) + 1;
+      }
+      for (const [topicId, count] of Object.entries(evidenceByTopic)) {
+        const state = user.progress.topics[topicId];
+        if (state) state.readinessEvidence = Math.max(state.readinessEvidence || 0, count);
+      }
+    }
+  }
+
+  database.schemaVersion = CURRENT_SCHEMA_VERSION;
+  return database;
 }
 
 export async function ensureStore() {
@@ -111,9 +136,7 @@ export async function ensureStore() {
 export async function readDatabase() {
   await ensureStore();
   const raw = await readFile(DB_PATH, 'utf8');
-  const database = JSON.parse(raw);
-  for (const user of Object.values(database.users || {})) ensureUserShape(user);
-  return database;
+  return migrateDatabase(JSON.parse(raw));
 }
 
 export function updateDatabase(mutator) {

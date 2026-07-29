@@ -30,7 +30,8 @@ const state = {
   assessmentTimer: null,
   content: null,
   contentSearch: '',
-  contentTopic: 'all'
+  contentTopic: 'all',
+  contentPage: 1
 };
 
 const routes = {
@@ -57,6 +58,26 @@ function clamp(value, minimum = 0, maximum = 100) {
 
 function titleCase(value) {
   return String(value || '').replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function difficultyName(questionOrCode) {
+  const code = typeof questionOrCode === 'string' ? questionOrCode : questionOrCode?.difficulty;
+  const labels = { D1: 'Easy', D2: 'Medium', D3: 'Tough', D4: 'Stretch' };
+  return typeof questionOrCode === 'object' && questionOrCode?.difficultyLabel
+    ? questionOrCode.difficultyLabel
+    : labels[code] || code || 'Mixed';
+}
+
+function formatCount(value) {
+  return Number(value || 0).toLocaleString('en-IN');
+}
+
+function topicContentStatus(topicId) {
+  const summary = state.bootstrap?.content?.byTopic?.find((topic) => topic.topicId === topicId);
+  if (!summary) return 'unknown';
+  if (summary.pilot && !summary.published) return 'pilot';
+  if (summary.pilot) return 'mixed';
+  return 'published';
 }
 
 function initials(name) {
@@ -267,9 +288,9 @@ function welcomeView() {
           <div class="floating-note floating-note--calm">${icon('leaf', 17)}<span><strong>No streak guilt</strong><small>A flexible weekly rhythm</small></span></div>
         </div>
       </section>
-      <section class="trust-strip section-wrap" aria-label="Prototype coverage">
-        <div><strong>90</strong><span>reviewed prototype questions</span></div>
-        <div><strong>3</strong><span>polished learning paths</span></div>
+      <section class="trust-strip section-wrap" aria-label="AptiBloom curriculum coverage">
+        <div><strong>1,090</strong><span>90 published · 1,000 pilot-validated</span></div>
+        <div><strong>12</strong><span>adaptive learning paths</span></div>
         <div><strong>6</strong><span>thoughtful interaction types</span></div>
         <div><strong>0</strong><span>lives, loot boxes, or shame</span></div>
       </section>
@@ -286,11 +307,11 @@ function welcomeView() {
         </div>
       </section>
       <section class="topic-showcase section-wrap" id="topics">
-        <div class="section-heading"><div class="eyebrow">Prototype curriculum</div><h2>Three topics, taught deeply.</h2><p>Enough range to prove numerical reasoning, word-problem structure, and precise verbal feedback.</p></div>
+        <div class="section-heading"><div class="eyebrow">Placement curriculum</div><h2>Three domains. Twelve focused paths.</h2><p>Build quantitative accuracy, logical pattern recognition, and verbal precision with difficulty that grows from Easy to Tough.</p></div>
         <div class="showcase-grid">
-          <article class="showcase-card showcase-card--indigo"><div class="showcase-icon">${icon('percent', 25)}</div><span>Quantitative</span><h3>Percentages</h3><p>Find the whole, compare change, work backwards, and handle successive rates.</p><small>30 reviewed items · D1–D3</small></article>
-          <article class="showcase-card showcase-card--green"><div class="showcase-icon">${icon('scale', 25)}</div><span>Quantitative</span><h3>Ratio & proportion</h3><p>Scale relationships, split totals, combine ratios, and reason through mixtures.</p><small>30 reviewed items · D1–D3</small></article>
-          <article class="showcase-card showcase-card--coral"><div class="showcase-icon">${icon('type', 25)}</div><span>Verbal</span><h3>Grammar & error spotting</h3><p>Use subject, tense, article, and usage rules instead of relying on familiarity.</p><small>30 reviewed items · D1–D3</small></article>
+          <article class="showcase-card showcase-card--indigo"><div class="showcase-icon">${icon('chart', 25)}</div><span>Quantitative aptitude</span><h3>Numbers with a method</h3><p>Percentages, ratios, averages, ages, profit and loss, and time and work.</p><small>6 paths · 510 questions · Easy–Tough</small></article>
+          <article class="showcase-card showcase-card--green"><div class="showcase-icon">${icon('layers', 25)}</div><span>Logical reasoning</span><h3>Patterns you can explain</h3><p>Number and letter series, coding and decoding, and conclusion-based syllogisms.</p><small>3 paths · 330 questions · Easy–Tough</small></article>
+          <article class="showcase-card showcase-card--coral"><div class="showcase-icon">${icon('book', 25)}</div><span>Verbal ability</span><h3>Language with precision</h3><p>Grammar, sentence correction, para jumbles, and reading comprehension.</p><small>3 paths · 250 questions · Easy–Tough</small></article>
         </div>
       </section>
       <section class="final-cta section-wrap">
@@ -395,15 +416,14 @@ function homeView() {
     </section>
     <section class="stat-grid stat-grid--four">
       <article class="stat-card"><span class="stat-icon stat-icon--indigo">${icon('target', 20)}</span><div><small>Recent accuracy</small><strong>${dashboard.overall.attempted ? `${dashboard.overall.accuracy}%` : '—'}</strong><p>${dashboard.overall.attempted ? 'Across your last 20 attempts' : 'Complete a mission to begin'}</p></div></article>
-      <article class="stat-card"><span class="stat-icon stat-icon--green">${icon('leaf', 20)}</span><div><small>Overall mastery</small><strong>${dashboard.overall.mastery}%</strong><p>Untimed understanding</p></div></article>
-      <article class="stat-card"><span class="stat-icon stat-icon--coral">${icon('timer', 20)}</span><div><small>Placement readiness</small><strong>${dashboard.overall.readiness}%</strong><p>Timed evidence only</p></div></article>
+      <article class="stat-card"><span class="stat-icon stat-icon--green">${icon('leaf', 20)}</span><div><small>Overall mastery</small><strong>${dashboard.overall.mastery}%</strong><p>${dashboard.overall.masteryEvidenceTopics ? `Based on ${dashboard.overall.masteryEvidenceTopics} evidence-backed path${dashboard.overall.masteryEvidenceTopics === 1 ? '' : 's'}` : 'Untimed understanding'}</p></div></article>
+      <article class="stat-card"><span class="stat-icon stat-icon--coral">${icon('timer', 20)}</span><div><small>Placement readiness</small><strong>${dashboard.overall.readiness}%</strong><p>Published timed evidence only</p></div></article>
       <article class="stat-card"><span class="stat-icon stat-icon--gold">${icon('refresh', 20)}</span><div><small>Reviews due</small><strong>${dashboard.dueReviews}</strong><p>${dashboard.dueReviews ? 'Ready for retrieval' : 'Nothing overdue'}</p></div></article>
     </section>
     <section class="content-section">
       <div class="section-row"><div><span class="page-kicker">Your skill garden</span><h2>Understanding grows here.</h2></div><a href="/progress" data-nav="/progress" class="text-link">See detailed progress ${icon('arrowRight', 16)}</a></div>
       <div class="garden-grid">
         ${dashboard.topics.map(topicGardenCard).join('')}
-        <article class="garden-topic garden-topic--locked"><div class="garden-topic-top"><div class="topic-symbol">${icon('layers', 22)}</div><span class="state-badge">Next release</span></div><div class="locked-visual">${icon('lock', 24)}</div><h3>Logical reasoning</h3><p>Series, coding, and syllogisms arrive after the core loop is proven.</p><div class="mini-progress"><span style="--value:0%"></span></div><span class="card-link card-link--muted">Planned, not artificially locked</span></article>
       </div>
     </section>
     <section class="home-lower-grid">
@@ -427,11 +447,12 @@ function learnView() {
     <section class="page-intro"><div><span class="page-kicker">Learning paths</span><h1>Choose what to understand next.</h1><p>No timers here. Start with the model, own the method, then practise without pressure.</p></div><button type="button" class="button button--secondary" data-action="start-mission" data-type="review">${icon('refresh', 17)} Mixed review</button></section>
     <section class="learning-paths">
       ${topics.map((topic, index) => `<article class="path-card path-card--${topic.accent}">
-        <div class="path-index">0${index + 1}</div>
+        <div class="path-index">${String(index + 1).padStart(2, '0')}</div>
         <div class="path-main">
-          <div class="path-heading"><span class="topic-symbol">${icon(topic.icon, 22)}</span><span class="pill">${escapeHtml(topic.domain)}</span></div>
+          <div class="path-heading"><span class="topic-symbol">${icon(topic.icon, 22)}</span><span class="pill">${escapeHtml(topic.domain)}</span>${topicContentStatus(topic.id) === 'pilot' ? '<span class="status-pill status-pill--pilot">Pilot path</span>' : ''}<span class="path-question-count">${formatCount(topic.questionCount)} questions</span></div>
           <h2>${escapeHtml(topic.name)}</h2><p>${escapeHtml(topic.description)}</p>
           <div class="concept-chips">${topic.concepts.map((concept) => `<span>${escapeHtml(concept)}</span>`).join('')}</div>
+          <div class="difficulty-coverage" aria-label="${escapeHtml(topic.name)} difficulty coverage"><span>${icon('checkCircle', 14)} Easy</span><span>${icon('checkCircle', 14)} Medium</span><span>${icon('checkCircle', 14)} Tough</span></div>
           <div class="path-metrics"><div><span><strong>${topic.mastery}%</strong> mastery</span>${miniBar(topic.mastery, `${topic.name} mastery`)}</div><div><span><strong>${topic.readiness}%</strong> ready</span>${miniBar(topic.readiness, `${topic.name} readiness`)}</div></div>
           <div class="path-footer"><span class="state-badge state-badge--${topic.state}">${stateLabel(topic.state)}</span><span>${escapeHtml(relativeReview(topic.reviewDue))}</span><button class="button button--primary" type="button" data-action="start-mission" data-type="topic" data-topic="${topic.id}">${topic.attempts ? 'Continue Focus Run' : 'Open Concept Lab'} ${icon('arrowRight', 17)}</button></div>
         </div>
@@ -484,7 +505,7 @@ function sprintIntroView() {
   return `<div class="page">
     <section class="page-intro"><div><span class="page-kicker">Placement conditions</span><h1>Accuracy first. Then pace.</h1><p>This neutral test mode hides feedback until submission and keeps garden rewards out of the way.</p></div></section>
     <section class="sprint-hero panel">
-      <div class="sprint-copy"><div class="eyebrow">Mixed prototype assessment</div><h2>12 questions · 12 minutes</h2><p>Percentages, ratio and proportion, and grammar appear without topic labels. Skip, revisit, and mark questions just as you would in a placement round.</p><div class="sprint-rules"><span>${icon('timer', 18)} Persistent timer</span><span>${icon('flag', 18)} Mark for review</span><span>${icon('layers', 18)} Mixed skills</span><span>${icon('eye', 18)} Answers after submission</span></div><button class="button button--primary button--large" type="button" data-action="start-assessment" ${state.busy ? 'disabled' : ''}>${state.busy ? buttonBusy('Preparing sprint') : `Start placement sprint ${icon('arrowRight', 19)}`}</button></div>
+      <div class="sprint-copy"><div class="eyebrow">Mixed placement assessment</div><h2>12 questions · 12 minutes</h2><p>One Medium or Tough question from every learning path spans quantitative aptitude, logical reasoning, and verbal ability. Topic labels stay hidden while you answer.</p><div class="pilot-disclosure">${icon('info', 16)} Pilot questions provide practice feedback but do not increase placement-readiness scores until reviewer publication.</div><div class="sprint-rules"><span>${icon('timer', 18)} Persistent timer</span><span>${icon('flag', 18)} Mark for review</span><span>${icon('layers', 18)} Mixed skills</span><span>${icon('eye', 18)} Answers after submission</span></div><button class="button button--primary button--large" type="button" data-action="start-assessment" ${state.busy ? 'disabled' : ''}>${state.busy ? buttonBusy('Preparing sprint') : `Start placement sprint ${icon('arrowRight', 19)}`}</button></div>
       <div class="sprint-readiness"><span class="page-kicker">Current readiness profile</span>${dashboard.topics.map((topic) => `<div class="readiness-row"><span><i class="topic-symbol topic-symbol--small">${icon(topic.icon, 16)}</i>${escapeHtml(topic.name)}</span><strong>${topic.readiness}%</strong>${miniBar(topic.readiness, `${topic.name} readiness`)}</div>`).join('')}<p>${icon('info', 16)} Low readiness means “not enough timed evidence,” not “low ability.”</p></div>
     </section>
     <section class="simulation-notes">
@@ -514,15 +535,34 @@ function settingsView() {
 
 function studioView() {
   const { summary, questions } = state.content;
-  const search = state.contentSearch.toLowerCase();
-  const filtered = questions.filter((question) => (state.contentTopic === 'all' || question.topicId === state.contentTopic) && (!search || `${question.id} ${question.prompt} ${question.concept}`.toLowerCase().includes(search)));
+  const search = state.contentSearch.trim().toLowerCase();
+  const filtered = questions.filter((question) => {
+    const matchesTopic = state.contentTopic === 'all' || question.topicId === state.contentTopic;
+    const searchable = `${question.id} ${question.prompt} ${question.topicName} ${question.concept} ${question.difficultyLabel} ${question.status}`.toLowerCase();
+    return matchesTopic && (!search || searchable.includes(search));
+  });
+  const pageSize = 100;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(Math.max(1, state.contentPage), pageCount);
+  const pageStart = (currentPage - 1) * pageSize;
+  const visibleQuestions = filtered.slice(pageStart, pageStart + pageSize);
+  const firstVisible = filtered.length ? pageStart + 1 : 0;
+  const lastVisible = Math.min(pageStart + pageSize, filtered.length);
+
   return `<div class="page">
-    <section class="page-intro"><div><span class="page-kicker">Local content studio</span><h1>Quality before quantity.</h1><p>A read-only view of the reviewed seed workflow. Correct answers remain server-side.</p></div><span class="status-pill status-pill--success">${icon('checkCircle', 16)} ${summary.reviewed} published</span></section>
-    <section class="stat-grid stat-grid--four studio-stats"><article class="stat-card"><span class="stat-icon stat-icon--indigo">${icon('layers', 20)}</span><div><small>Versioned items</small><strong>${summary.total}</strong><p>Content ${escapeHtml(summary.version)}</p></div></article>${summary.byTopic.map((topic, index) => `<article class="stat-card"><span class="stat-icon stat-icon--${['indigo', 'green', 'coral'][index]}">${icon(['percent', 'scale', 'type'][index], 20)}</span><div><small>${escapeHtml(titleCase(topic.topicId))}</small><strong>${topic.count}</strong><p>${topic.foundation} D1 · ${topic.application} D2 · ${topic.placement} D3</p></div></article>`).join('')}</section>
+    <section class="page-intro"><div><span class="page-kicker">Local content studio</span><h1>Validated, versioned, transparent.</h1><p>Explore 90 reviewer-published questions and 1,000 automatically validated pilot questions. Correct answers remain server-side.</p></div><div class="studio-statuses"><span class="status-pill status-pill--success">${icon('checkCircle', 16)} ${formatCount(summary.published)} published</span><span class="status-pill status-pill--pilot">${icon('clock', 16)} ${formatCount(summary.pilot)} pilot</span></div></section>
+    <section class="stat-grid stat-grid--four studio-stats">
+      <article class="stat-card"><span class="stat-icon stat-icon--indigo">${icon('layers', 20)}</span><div><small>Versioned questions</small><strong>${formatCount(summary.total)}</strong><p>Content ${escapeHtml(summary.version)}</p></div></article>
+      <article class="stat-card"><span class="stat-icon stat-icon--green">${icon('checkCircle', 20)}</span><div><small>Reviewer-published</small><strong>${formatCount(summary.published)}</strong><p>Existing reviewed bank</p></div></article>
+      <article class="stat-card"><span class="stat-icon stat-icon--coral">${icon('clock', 20)}</span><div><small>Pilot validated</small><strong>${formatCount(summary.pilot)}</strong><p>Human review pending</p></div></article>
+      <article class="stat-card"><span class="stat-icon stat-icon--gold">${icon('target', 20)}</span><div><small>Difficulty coverage</small><strong>${formatCount(summary.byDifficulty.easy)} / ${formatCount(summary.byDifficulty.medium)} / ${formatCount(summary.byDifficulty.tough)}</strong><p>Easy · Medium · Tough</p></div></article>
+    </section>
+    <section class="stat-grid stat-grid--four studio-topic-stats" aria-label="Question counts by topic">${summary.byTopic.map((topic) => { const meta = state.bootstrap.dashboard.topics.find((candidate) => candidate.id === topic.topicId); const tone = meta?.accent === 'emerald' ? 'green' : meta?.accent || 'indigo'; return `<article class="stat-card"><span class="stat-icon stat-icon--${tone}">${icon(meta?.icon || 'layers', 20)}</span><div><small>${escapeHtml(topic.topicName)}</small><strong>${formatCount(topic.count)}</strong><p>${topic.easy} Easy · ${topic.medium} Medium · ${topic.tough} Tough</p></div></article>`; }).join('')}</section>
     <section class="panel studio-panel">
-      <div class="studio-toolbar"><div><span class="page-kicker">Question catalogue</span><h2>Reviewed prototype bank</h2></div><div class="studio-filters"><label class="search-field">${icon('search', 17)}<input type="search" placeholder="Search prompt or concept" value="${escapeHtml(state.contentSearch)}" data-content-search aria-label="Search question catalogue"></label><label class="select-field">${icon('filter', 17)}<select data-content-topic aria-label="Filter by topic"><option value="all">All topics</option>${summary.byTopic.map((topic) => `<option value="${topic.topicId}" ${state.contentTopic === topic.topicId ? 'selected' : ''}>${titleCase(topic.topicId)}</option>`).join('')}</select></label></div></div>
-      <div class="content-table-wrap"><table class="content-table"><thead><tr><th>Item</th><th>Topic / concept</th><th>Form</th><th>Level</th><th>Status</th><th>Version</th></tr></thead><tbody>${filtered.map((question) => `<tr><td><strong>${escapeHtml(question.id)}</strong><small>${escapeHtml(question.prompt)}</small></td><td><strong>${escapeHtml(question.topicName)}</strong><small>${escapeHtml(titleCase(question.concept))}</small></td><td>${escapeHtml(titleCase(question.type))}</td><td><span class="difficulty-badge">${question.difficulty}</span></td><td><span class="status-pill status-pill--success">Published</span></td><td>v${question.version}</td></tr>`).join('')}</tbody></table>${filtered.length ? '' : '<div class="table-empty">No questions match this filter.</div>'}</div>
-      <div class="studio-footnote">${icon('shield', 17)} Every item has a version, progressive hints, a worked solution, a misconception response, provenance, and reviewer metadata.</div>
+      <div class="studio-toolbar"><div><span class="page-kicker">Question catalogue</span><h2>Published and pilot bank</h2></div><div class="studio-filters"><label class="search-field">${icon('search', 17)}<input type="search" placeholder="Search prompt or concept" value="${escapeHtml(state.contentSearch)}" data-content-search aria-label="Search question catalogue"></label><label class="select-field">${icon('filter', 17)}<select data-content-topic aria-label="Filter by topic"><option value="all">All topics</option>${summary.byTopic.map((topic) => `<option value="${topic.topicId}" ${state.contentTopic === topic.topicId ? 'selected' : ''}>${escapeHtml(topic.topicName)}</option>`).join('')}</select></label></div></div>
+      <div class="content-table-wrap"><table class="content-table"><thead><tr><th>Item</th><th>Topic / concept</th><th>Form</th><th>Difficulty</th><th>Status</th><th>Version</th></tr></thead><tbody>${visibleQuestions.map((question) => { const published = question.status === 'published'; return `<tr><td><strong>${escapeHtml(question.id)}</strong><small title="${escapeHtml(question.prompt)}">${escapeHtml(question.prompt)}</small></td><td><strong>${escapeHtml(question.topicName)}</strong><small>${escapeHtml(titleCase(question.concept))}</small></td><td>${escapeHtml(titleCase(question.type))}</td><td><span class="difficulty-badge">${escapeHtml(difficultyName(question))}</span></td><td><span class="status-pill ${published ? 'status-pill--success' : 'status-pill--pilot'}">${published ? 'Published' : 'Pilot'}</span></td><td>v${question.version}</td></tr>`; }).join('')}</tbody></table>${filtered.length ? '' : '<div class="table-empty">No questions match this filter.</div>'}</div>
+      <div class="studio-pagination"><span>Showing ${formatCount(firstVisible)}–${formatCount(lastVisible)} of ${formatCount(filtered.length)}</span><div><button class="button button--ghost button--small" type="button" data-action="content-prev" ${currentPage === 1 ? 'disabled' : ''}>${icon('chevronLeft', 15)} Previous</button><span>Page ${currentPage} of ${pageCount}</span><button class="button button--ghost button--small" type="button" data-action="content-next" ${currentPage === pageCount ? 'disabled' : ''}>Next ${icon('chevronRight', 15)}</button></div></div>
+      <div class="studio-footnote">${icon('shield', 17)} Every question has a version, two progressive hints, a worked solution, misconception feedback, provenance, and review status.</div>
     </section>
   </div>`;
 }
@@ -530,6 +570,7 @@ function studioView() {
 function renderLessonVisual(lesson) {
   if (lesson.visual === 'percent-grid') return `<div class="lesson-model percent-model"><div class="percent-blocks">${Array.from({ length: 20 }, (_, index) => `<i class="${index < 3 ? 'is-active' : ''}"></i>`).join('')}</div><span>15 of 100</span></div>`;
   if (lesson.visual === 'ratio-bars') return `<div class="lesson-model ratio-model"><div><span></span><span></span><span></span></div><div><span></span><span></span></div><small>3 equal parts : 2 equal parts</small></div>`;
+  if (lesson.visual === 'concept-map') return `<div class="lesson-model concept-model" aria-hidden="true">${lesson.steps.map((step, index) => `<div><span>${icon(['target', 'layers', 'checkCircle'][index] || 'checkCircle', 20)}</span><strong>${escapeHtml(step.value)}</strong></div>`).join('')}</div>`;
   return `<div class="lesson-model sentence-model"><span class="sentence-subject">The list</span><span class="sentence-detail">of candidates</span><span class="sentence-verb">was posted</span><i></i></div>`;
 }
 
@@ -610,7 +651,7 @@ function missionQuestionView() {
     <header class="mission-topbar"><button class="icon-button" type="button" data-nav="/" aria-label="Save and return home">${icon('close', 21)}</button><div class="mission-progress-label"><span>${state.isRetry ? 'Repair' : `Step ${state.missionIndex + 1} of ${mission.questions.length}`}</span><div class="top-progress"><i style="--value:${progress}%"></i></div></div><span class="mission-mode-label">${icon('timer', 16)} Untimed</span></header>
     <main class="question-main" id="main-content">
       <section class="question-card">
-        <div class="question-meta"><span class="pill">${state.isRetry ? 'Near-neighbour retry' : question.topicName || (mission.type === 'diagnostic' ? 'Starting check' : 'Mixed practice')}</span><span>${escapeHtml(question.difficulty)} · about ${question.expectedSeconds}s</span></div>
+        <div class="question-meta"><span class="pill">${state.isRetry ? 'Near-neighbour retry' : question.topicName || (mission.type === 'diagnostic' ? 'Starting check' : 'Mixed practice')}</span><div class="question-signals"><span>${escapeHtml(difficultyName(question))} · about ${question.expectedSeconds}s</span>${question.status === 'pilot' ? '<span class="status-pill status-pill--pilot">Pilot question</span>' : ''}</div></div>
         <h1>${escapeHtml(question.prompt)}</h1>
         ${answered ? feedbackView(question) : `<div class="answer-area">${answerControl(question, state.answer, 'mission')}</div><div class="question-tools"><button class="button button--hint" type="button" data-action="request-hint" ${state.hintIndex >= question.hintCount ? 'disabled' : ''}>${icon('bulb', 17)} ${state.hints.length ? 'Another hint' : 'Give me a hint'}</button><button class="text-button" type="button" data-action="open-report-dialog">${icon('flag', 16)} Report item</button></div>${state.hints.length ? `<div class="hint-stack" aria-live="polite">${state.hints.map((hint, index) => `<div><span>Hint ${index + 1}</span><p>${escapeHtml(hint)}</p></div>`).join('')}</div>` : ''}<button class="button button--primary button--large button--wide question-submit" type="button" data-action="submit-answer" ${!answerIsPresent(question, state.answer) || state.busy ? 'disabled' : ''}>${state.busy ? buttonBusy('Checking method') : `Check my method ${icon('arrowRight', 18)}`}</button>`}
       </section>
@@ -662,7 +703,7 @@ function assessmentView() {
     <header class="assessment-header"><div>${brand(true)}<span class="assessment-title">Mixed placement sprint</span></div><div class="assessment-timer" role="timer" aria-live="off">${icon('timer', 19)}<span id="assessment-time">${formatTimer(assessment.durationSeconds)}</span></div><button class="button button--ghost button--small" type="button" data-action="open-submit-dialog">Submit test</button></header>
     <div class="assessment-layout">
       <aside class="assessment-nav" aria-label="Question navigation"><div class="assessment-nav-heading"><span>Question palette</span><small>${answeredCount}/${assessment.questions.length} answered</small></div><div class="question-palette">${assessment.questions.map((item, index) => { const hasAnswer = answerIsPresent(item, assessmentAnswer(item)); const marked = state.assessmentMarked.has(item.id); return `<button type="button" class="palette-item${index === state.assessmentIndex ? ' is-current' : ''}${hasAnswer ? ' is-answered' : ''}${marked ? ' is-marked' : ''}" data-action="assessment-go" data-index="${index}" aria-label="Question ${index + 1}${hasAnswer ? ', answered' : ''}${marked ? ', marked for review' : ''}">${index + 1}</button>`; }).join('')}</div><div class="palette-legend"><span><i class="legend-current"></i>Current</span><span><i class="legend-answered"></i>Answered</span><span><i class="legend-marked"></i>Review</span></div><div class="assessment-note">${icon('info', 16)} Answers and explanations stay hidden until you submit.</div></aside>
-      <main class="assessment-main" id="main-content"><div class="assessment-question-meta"><span>Question ${state.assessmentIndex + 1} of ${assessment.questions.length}</span><span>${escapeHtml(question.difficulty)} · suggested ${question.expectedSeconds}s</span></div><h1>${escapeHtml(question.prompt)}</h1><div class="assessment-answer">${answerControl(question, answer, 'assessment')}</div><div class="assessment-controls"><button class="button button--ghost" type="button" data-action="assessment-mark">${icon('flag', 17)} ${state.assessmentMarked.has(question.id) ? 'Marked for review' : 'Mark for review'}</button><div><button class="button button--ghost" type="button" data-action="assessment-prev" ${state.assessmentIndex === 0 ? 'disabled' : ''}>${icon('chevronLeft', 17)} Previous</button><button class="button button--primary" type="button" data-action="assessment-next">${state.assessmentIndex === assessment.questions.length - 1 ? 'Review palette' : 'Save & next'} ${icon('chevronRight', 17)}</button></div></div></main>
+      <main class="assessment-main" id="main-content"><div class="assessment-question-meta"><span>Question ${state.assessmentIndex + 1} of ${assessment.questions.length}</span><div class="question-signals"><span>${escapeHtml(difficultyName(question))} · suggested ${question.expectedSeconds}s</span>${question.status === 'pilot' ? '<span class="status-pill status-pill--pilot">Pilot practice signal</span>' : ''}</div></div><h1>${escapeHtml(question.prompt)}</h1><div class="assessment-answer">${answerControl(question, answer, 'assessment')}</div><div class="assessment-controls"><button class="button button--ghost" type="button" data-action="assessment-mark">${icon('flag', 17)} ${state.assessmentMarked.has(question.id) ? 'Marked for review' : 'Mark for review'}</button><div><button class="button button--ghost" type="button" data-action="assessment-prev" ${state.assessmentIndex === 0 ? 'disabled' : ''}>${icon('chevronLeft', 17)} Previous</button><button class="button button--primary" type="button" data-action="assessment-next">${state.assessmentIndex === assessment.questions.length - 1 ? 'Review palette' : 'Save & next'} ${icon('chevronRight', 17)}</button></div></div></main>
     </div>
     <dialog class="dialog" id="submit-dialog"><div><button class="dialog-close icon-button" type="button" data-action="close-submit-dialog" aria-label="Close">${icon('close', 20)}</button><span class="dialog-icon">${icon('flag', 23)}</span><h2>Submit your sprint?</h2><p>You answered ${answeredCount} of ${assessment.questions.length}. Unanswered items will be scored as incorrect.</p><div class="dialog-actions"><button class="button button--ghost" type="button" data-action="close-submit-dialog">Keep working</button><button class="button button--primary" type="button" data-action="confirm-assessment-submit">Submit & see report</button></div></div></dialog>
   </div>`;
@@ -679,12 +720,17 @@ function displaySuppliedAnswer(review) {
 
 function assessmentReportView() {
   const report = state.assessmentReport;
+  const domainResults = report.byDomain || [];
+  const topicResults = report.byTopic || [];
+  const allSingleItemSignals = topicResults.length > 0 && topicResults.every((topic) => topic.signal === 'single-item');
+  const topicHeading = allSingleItemSignals ? 'One item per path—not a final skill score.' : 'Sampled evidence by path.';
   return `<div class="report-page">
     <header class="mission-topbar">${brand(true)}<span class="status-pill">Sprint submitted</span></header>
     <main class="report-main" id="main-content">
       <section class="report-hero"><div><span class="page-kicker">Placement sprint report</span><h1>${report.accuracy >= 75 ? 'Accuracy is holding.' : 'The report found your next step.'}</h1><p>${escapeHtml(report.nextRecommendation.reason)}</p><div class="report-actions"><button class="button button--primary" type="button" data-action="finish-assessment">Return to progress ${icon('arrowRight', 17)}</button><button class="button button--ghost" type="button" data-action="start-mission" data-type="${report.nextRecommendation.type === 'assessment' ? 'daily' : report.nextRecommendation.type}" data-topic="${report.nextRecommendation.topicId}">Follow recommendation</button></div></div><div class="report-score">${progressRing(report.accuracy, 'Accuracy', 'xlarge')}<span>${report.score} of ${report.total} correct</span></div></section>
-      <section class="report-breakdown"><div class="section-row"><div><span class="page-kicker">Skill breakdown</span><h2>Where the score came from</h2></div><span class="calm-label">Mastery was not reduced by speed</span></div><div class="report-topic-grid">${report.byTopic.map((topic) => { const readiness = report.readiness.find((item) => item.topicId === topic.topicId); return `<article><div><h3>${escapeHtml(topic.name)}</h3><span>${topic.correct}/${topic.total} correct</span></div><strong>${topic.accuracy}%</strong>${miniBar(topic.accuracy, `${topic.name} assessment accuracy`)}<p>${escapeHtml(topic.nextAction)}</p><small>Mastery ${readiness?.mastery || 0}% · readiness ${readiness?.readiness || 0}%</small></article>`; }).join('')}</div></section>
-      <section class="review-section"><div class="section-row"><div><span class="page-kicker">Question review</span><h2>Review the method, not only the key.</h2></div></div><div class="review-list">${report.review.map((item, index) => `<details class="review-item${item.correct ? ' is-correct' : ' is-incorrect'}"><summary><span class="review-number">${index + 1}</span><span><strong>${escapeHtml(item.question.prompt)}</strong><small>${item.correct ? 'Correct method' : 'Needs repair'} · ${escapeHtml(item.question.topicName)}</small></span><i>${icon(item.correct ? 'checkCircle' : 'alertCircle', 19)}</i></summary><div class="review-body"><div class="answer-comparison"><p><span>Your answer</span><strong>${escapeHtml(displaySuppliedAnswer(item))}</strong></p><p><span>Correct answer</span><strong>${escapeHtml(item.correctAnswer)}</strong></p></div><ol>${item.solutionSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('')}</div></section>
+      ${domainResults.length ? `<section class="report-breakdown"><div class="section-row"><div><span class="page-kicker">Domain breakdown</span><h2>Use the broader signal first.</h2></div><span class="calm-label">${escapeHtml(report.readinessPolicy || 'Assessment evidence stays separate from mastery')}</span></div><div class="report-topic-grid report-domain-grid">${domainResults.map((domain) => `<article><div><h3>${escapeHtml(domain.domain)}</h3><span>${domain.correct}/${domain.total} correct</span></div><strong>${domain.accuracy}%</strong>${miniBar(domain.accuracy, `${domain.domain} assessment accuracy`)}<p>Based on ${domain.total} sampled item${domain.total === 1 ? '' : 's'} in this sprint.</p></article>`).join('')}</div></section>` : ''}
+      <section class="report-breakdown"><div class="section-row"><div><span class="page-kicker">Path samples</span><h2>${escapeHtml(topicHeading)}</h2></div><span class="calm-label">Build a trend through Focus Runs</span></div><div class="report-topic-grid">${topicResults.map((topic) => { const readiness = report.readiness.find((item) => item.topicId === topic.topicId); const resultLabel = topic.signal === 'not-sampled' ? 'Not sampled' : topic.correct === topic.total ? 'Held' : topic.correct === 0 ? 'Review' : 'Mixed'; return `<article><div><h3>${escapeHtml(topic.name)}</h3><span>${topic.correct}/${topic.total} sampled</span></div><strong>${resultLabel}</strong>${miniBar(topic.accuracy, `${topic.name} sampled result`)}<p>${escapeHtml(topic.nextAction)}</p><small>Mastery ${readiness?.mastery || 0}% · readiness ${readiness?.readiness || 0}%</small></article>`; }).join('')}</div></section>
+      <section class="review-section"><div class="section-row"><div><span class="page-kicker">Question review</span><h2>Review the method, not only the key.</h2></div></div><div class="review-list">${report.review.map((item, index) => `<details class="review-item${item.correct ? ' is-correct' : ' is-incorrect'}"><summary><span class="review-number">${index + 1}</span><span><strong>${escapeHtml(item.question.prompt)}</strong><small>${item.correct ? 'Correct method' : 'Needs repair'} · ${escapeHtml(item.question.topicName)}${item.question.status === 'pilot' ? ' · Pilot' : ''}</small></span><i>${icon(item.correct ? 'checkCircle' : 'alertCircle', 19)}</i></summary><div class="review-body"><div class="answer-comparison"><p><span>Your answer</span><strong>${escapeHtml(displaySuppliedAnswer(item))}</strong></p><p><span>Correct answer</span><strong>${escapeHtml(item.correctAnswer)}</strong></p></div><ol>${item.solutionSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('')}</div></section>
     </main>
   </div>`;
 }
@@ -881,6 +927,7 @@ async function submitMissionAnswer() {
   try {
     state.feedback = await api.submitAttempt(state.mission.id, {
       questionId: question.id,
+      questionVersion: question.version,
       answer: state.answer,
       hintCount: state.hints.length,
       responseMs: Math.round(performance.now() - state.questionStartedAt),
@@ -949,7 +996,7 @@ async function startAssessment() {
 }
 
 function assessmentEntry(question) {
-  state.assessmentAnswers[question.id] ??= { questionId: question.id, answer: null, responseMs: 0, openedAt: performance.now() };
+  state.assessmentAnswers[question.id] ??= { questionId: question.id, questionVersion: question.version, answer: null, responseMs: 0, openedAt: performance.now() };
   return state.assessmentAnswers[question.id];
 }
 
@@ -1094,6 +1141,12 @@ async function handleAction(button) {
   if (action === 'close-submit-dialog') { document.querySelector('#submit-dialog')?.close(); return; }
   if (action === 'confirm-assessment-submit') { document.querySelector('#submit-dialog')?.close(); return submitAssessment(false); }
   if (action === 'finish-assessment') { state.assessment = null; state.assessmentReport = null; return navigate('/progress'); }
+  if (action === 'content-prev' || action === 'content-next') {
+    state.contentPage = Math.max(1, state.contentPage + (action === 'content-next' ? 1 : -1));
+    app.innerHTML = appShell(studioView(), '/studio');
+    document.querySelector('.studio-panel')?.scrollIntoView({ block: 'start', behavior: document.body.classList.contains('reduce-motion') ? 'auto' : 'smooth' });
+    return;
+  }
   if (action === 'export-data') return exportData();
   if (action === 'logout') {
     try { await api.logout(); } catch { /* Local sign-out still clears the client session. */ }
@@ -1158,6 +1211,7 @@ function handleInput(event) {
   }
   if (event.target.matches('[data-content-search]')) {
     state.contentSearch = event.target.value;
+    state.contentPage = 1;
     const position = event.target.selectionStart;
     app.innerHTML = appShell(studioView(), '/studio');
     const replacement = document.querySelector('[data-content-search]');
@@ -1179,6 +1233,7 @@ function handleChange(event) {
   }
   if (event.target.matches('[data-content-topic]')) {
     state.contentTopic = event.target.value;
+    state.contentPage = 1;
     app.innerHTML = appShell(studioView(), '/studio');
   }
 }

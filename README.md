@@ -6,6 +6,12 @@
 
 **Idea recorded:** 2026-07-28
 
+## Current local build
+
+The working site now exposes **1,090 original questions across 12 paths**: 90 reviewer-published seed questions and 1,000 automatically validated pilot questions pending human review. The combined difficulty mix is 390 Easy, 400 Medium, and 300 Tough. Pilot questions are labelled in learner flows and do not increase placement-readiness scores until publication.
+
+Run `npm run check` to validate syntax plus question counts, topic coverage, unique IDs and prompts, option quality, canonical answers, learner-safe payloads, lesson coverage, balanced mission selection, and pilot-readiness policy.
+
 ## The problem
 
 Aptitude is often the first filter in campus placements, but classes and existing preparation sites can feel like long lectures, crowded question banks, or stressful mock tests. Students may practise without understanding why an answer is wrong, whether they are improving, or what they should study next.
@@ -60,7 +66,7 @@ There are no loot boxes, forced public rankings, punitive lives, or streak loss 
 - **Logical reasoning:** series, coding-decoding, directions, blood relations, syllogisms, arrangements, ranking, and data sufficiency.
 - **Verbal ability:** grammar, error spotting, sentence correction, vocabulary in context, fill-in-the-blanks, para jumbles, reading comprehension, and verbal reasoning.
 
-The first prototype should cover only three topics extremely well. The public MVP expands to about twelve topics with approximately 600 reviewed questions.
+The original prototype scope covered three topics deeply. The current local build expands that foundation to twelve paths and 1,090 questions while keeping the 1,000 generated additions clearly marked as pilot content pending human review.
 
 ## Honest assessment
 
@@ -75,7 +81,7 @@ Build a mobile-first responsive web app/PWA. It works on laptops and phones, is 
 The first release includes:
 
 - student sign-in and onboarding diagnostic;
-- three polished topics;
+- twelve learning paths across quantitative, logical, and verbal aptitude;
 - short concept lessons;
 - adaptive practice;
 - detailed solutions and near-neighbour retry;

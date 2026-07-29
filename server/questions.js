@@ -1,4 +1,9 @@
-const CONTENT_VERSION = '2026.07.1';
+import { createHash } from 'node:crypto';
+import { TOPIC_CATALOG, difficultyLabel } from './catalog.js';
+import { GENERATED_QUESTIONS } from './question-generators.js';
+
+const CONTENT_VERSION = '2026.08.1';
+const MCQ_OPTION_ORDER_VERSION = 'aptibloom-mcq-options-v2-4263';
 const optionIds = ['a', 'b', 'c', 'd', 'e'];
 
 const misconceptionLibrary = {
@@ -85,16 +90,34 @@ function hashId(value) {
   return [...value].reduce((sum, character) => sum + character.charCodeAt(0), 0);
 }
 
+function optionOrderKey(questionId, label) {
+  return createHash('sha256')
+    .update(`${MCQ_OPTION_ORDER_VERSION}\u0000${questionId}\u0000${label}`)
+    .digest('hex');
+}
+
+function orderOptionLabels(questionId, labels) {
+  return labels
+    .map((label) => ({ label, key: optionOrderKey(questionId, label) }))
+    .sort((first, second) => {
+      if (first.key !== second.key) return first.key < second.key ? -1 : 1;
+      if (first.label === second.label) return 0;
+      return first.label < second.label ? -1 : 1;
+    })
+    .map(({ label }) => label);
+}
+
 function baseQuestion({ id, domain, topicId, topicName, concept, difficulty, prompt, expectedSeconds, hints, solution, misconception, accessibility }) {
   return {
     id,
-    version: 1,
+    version: 2,
     contentVersion: CONTENT_VERSION,
     domain,
     topicId,
     topicName,
     concept,
     difficulty,
+    difficultyLabel: difficultyLabel(difficulty),
     prompt,
     expectedSeconds,
     hints,
@@ -115,12 +138,14 @@ function makeMcq(meta, correctLabel, distractors) {
     if (labels.length >= 4) break;
     if (!labels.includes(candidate)) labels.push(candidate);
   }
-  const ordered = rotate(labels, hashId(meta.id));
+  const legacyOrdered = rotate(labels, hashId(meta.id));
+  const ordered = orderOptionLabels(meta.id, labels);
   const options = ordered.map((label, index) => ({ id: optionIds[index], label }));
   return {
     ...baseQuestion(meta),
     type: 'mcq',
     options,
+    legacyOptions: legacyOrdered.map((label, index) => ({ id: optionIds[index], label })),
     answer: options.find((option) => option.label === String(correctLabel)).id
   };
 }
@@ -583,7 +608,8 @@ const ratioTopic = { id: 'ratios', prefix: 'rat', name: 'Ratio & proportion', do
 export const QUESTIONS = [
   ...percentageSpecs.map((spec, index) => quantQuestion(percentageTopic, spec, index)),
   ...ratioSpecs.map((spec, index) => quantQuestion(ratioTopic, spec, index)),
-  ...grammarSpecs.map(grammarQuestion)
+  ...grammarSpecs.map(grammarQuestion),
+  ...GENERATED_QUESTIONS
 ];
 
 const questionIndex = new Map(QUESTIONS.map((question) => [question.id, question]));
@@ -597,26 +623,40 @@ export function getQuestions(filters = {}) {
     if (filters.topicId && question.topicId !== filters.topicId) return false;
     if (filters.difficulty && question.difficulty !== filters.difficulty) return false;
     if (filters.concept && question.concept !== filters.concept) return false;
-    return question.status === 'published';
+    return ['published', 'pilot'].includes(question.status);
   });
 }
 
-export function publicQuestion(question, { hideLabels = false } = {}) {
+export function supportsQuestionVersion(question, version) {
+  const requestedVersion = Number(version);
+  return requestedVersion === question.version || (requestedVersion === 1 && question.version === 2);
+}
+
+function optionsForVersion(question, version) {
+  if (!question.options || question.type !== 'mcq' || Number(version) === question.version) return question.options;
+  return question.legacyOptions || question.options;
+}
+
+export function publicQuestion(question, { hideLabels = false, version = question.version } = {}) {
+  const requestedVersion = Number(version);
+  if (!supportsQuestionVersion(question, requestedVersion)) throw new Error(`Unsupported question version ${version} for ${question.id}`);
   const publicData = {
     id: question.id,
-    version: question.version,
+    version: requestedVersion,
     domain: hideLabels ? undefined : question.domain,
     topicId: hideLabels ? undefined : question.topicId,
     topicName: hideLabels ? undefined : question.topicName,
     concept: hideLabels ? undefined : question.concept,
     difficulty: question.difficulty,
+    difficultyLabel: question.difficultyLabel || difficultyLabel(question.difficulty),
+    status: question.status,
     type: question.type,
     prompt: question.prompt,
     expectedSeconds: question.expectedSeconds,
     accessibility: question.accessibility,
     hintCount: question.hints.length
   };
-  if (question.options) publicData.options = question.options;
+  if (question.options) publicData.options = optionsForVersion(question, requestedVersion);
   if (question.matchRows) publicData.matchRows = question.matchRows;
   if (question.matchOptions) publicData.matchOptions = question.matchOptions;
   if (question.inputSuffix) publicData.inputSuffix = question.inputSuffix;
@@ -632,8 +672,8 @@ function normalizeText(value) {
     .replace(/\s+/g, ' ');
 }
 
-export function evaluateAnswer(question, suppliedAnswer) {
-  if (!question) return false;
+export function evaluateAnswer(question, suppliedAnswer, version = question?.version) {
+  if (!question || !supportsQuestionVersion(question, version)) return false;
   if (question.type === 'numeric') {
     const numeric = Number(String(suppliedAnswer ?? '').replace(/[,₹%a-zA-Z\s]/g, ''));
     return Number.isFinite(numeric) && Math.abs(numeric - question.answer) <= (question.tolerance || 0);
@@ -647,6 +687,11 @@ export function evaluateAnswer(question, suppliedAnswer) {
   }
   if (question.type === 'matching') {
     return suppliedAnswer && Object.entries(question.answer).every(([row, match]) => suppliedAnswer[row] === match);
+  }
+  if (question.type === 'mcq' && Number(version) !== question.version) {
+    const correctLabel = question.options.find((option) => option.id === question.answer)?.label;
+    const versionedAnswer = optionsForVersion(question, version)?.find((option) => option.label === correctLabel)?.id;
+    return suppliedAnswer === versionedAnswer;
   }
   return suppliedAnswer === question.answer;
 }
@@ -678,17 +723,43 @@ export function findNearNeighbour(question, excludedIds = []) {
 }
 
 export function contentSummary() {
+  const published = QUESTIONS.filter((question) => question.status === 'published').length;
+  const pilot = QUESTIONS.filter((question) => question.status === 'pilot').length;
+  const byDifficulty = {
+    easy: QUESTIONS.filter((question) => question.difficulty === 'D1').length,
+    medium: QUESTIONS.filter((question) => question.difficulty === 'D2').length,
+    tough: QUESTIONS.filter((question) => question.difficulty === 'D3').length
+  };
+
   return {
     version: CONTENT_VERSION,
     total: QUESTIONS.length,
-    reviewed: QUESTIONS.filter((question) => question.status === 'published').length,
-    byTopic: ['percentages', 'ratios', 'grammar'].map((topicId) => ({
-      topicId,
-      count: QUESTIONS.filter((question) => question.topicId === topicId).length,
-      foundation: QUESTIONS.filter((question) => question.topicId === topicId && question.difficulty === 'D1').length,
-      application: QUESTIONS.filter((question) => question.topicId === topicId && question.difficulty === 'D2').length,
-      placement: QUESTIONS.filter((question) => question.topicId === topicId && question.difficulty === 'D3').length
-    })),
+    reviewed: published,
+    published,
+    pilot,
+    byDifficulty,
+    byTopic: TOPIC_CATALOG.map((topic) => {
+      const topicQuestions = QUESTIONS.filter((question) => question.topicId === topic.id);
+      const easy = topicQuestions.filter((question) => question.difficulty === 'D1').length;
+      const medium = topicQuestions.filter((question) => question.difficulty === 'D2').length;
+      const tough = topicQuestions.filter((question) => question.difficulty === 'D3').length;
+      const topicPublished = topicQuestions.filter((question) => question.status === 'published').length;
+      const topicPilot = topicQuestions.filter((question) => question.status === 'pilot').length;
+      return {
+        topicId: topic.id,
+        topicName: topic.name,
+        domain: topic.domain,
+        count: topicQuestions.length,
+        published: topicPublished,
+        pilot: topicPilot,
+        easy,
+        medium,
+        tough,
+        foundation: easy,
+        application: medium,
+        placement: tough
+      };
+    }),
     interactionTypes: [...new Set(QUESTIONS.map((question) => question.type))]
   };
 }
@@ -700,6 +771,7 @@ export function contentCatalogue() {
     topicName: question.topicName,
     concept: question.concept,
     difficulty: question.difficulty,
+    difficultyLabel: question.difficultyLabel || difficultyLabel(question.difficulty),
     type: question.type,
     status: question.status,
     version: question.version,
