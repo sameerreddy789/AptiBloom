@@ -1,14 +1,14 @@
 {
   "name": "AptiBloom",
   "short_name": "AptiBloom",
-  "description": "Calm, adaptive placement aptitude practice.",
+  "description": "The Lost Atlas: calm, adaptive placement aptitude expeditions.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f7f7f2",
-  "theme_color": "#4f46e5",
+  "background_color": "#f6f2e8",
+  "theme_color": "#1c6b67",
   "categories": ["education", "productivity"],
   "icons": [
     {

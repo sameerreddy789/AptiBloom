@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { TOPIC_IDS } from './catalog.js';
+import { awardSeals } from './learning.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'aptibloom.json');
@@ -73,6 +74,7 @@ function defaultUser({ name, email = null, isGuest = false }) {
       journeyXp: 0,
       petals: 0,
       weeklyDays: [],
+      seals: {},
       topics: Object.fromEntries(TOPIC_IDS.map((topicId) => [topicId, newTopicState()]))
     },
     attempts: [],
@@ -87,6 +89,7 @@ function ensureUserShape(user) {
   user.progress.journeyXp ??= 0;
   user.progress.petals ??= 0;
   user.progress.weeklyDays ??= [];
+  user.progress.seals ??= {};
   user.progress.topics ??= {};
   for (const topicId of TOPIC_IDS) {
     user.progress.topics[topicId] = {
@@ -104,6 +107,9 @@ export function migrateDatabase(database) {
   for (const user of Object.values(database.users)) ensureUserShape(user);
 
   if (Number(database.schemaVersion || 1) < 2) {
+    // Backfill atlas seals so milestones already satisfied by existing evidence are not lost.
+    for (const user of Object.values(database.users)) awardSeals(user);
+
     for (const user of Object.values(database.users)) {
       const evidenceByTopic = {};
       for (const attempt of user.attempts) {

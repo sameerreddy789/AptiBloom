@@ -6,7 +6,7 @@ export const TOPICS = TOPIC_CATALOG;
 
 export const LESSONS = {
   percentages: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Start with the whole',
     summary: 'A percentage is a relationship to 100. Name the whole first; every calculation becomes easier after that.',
     visual: 'percent-grid',
@@ -18,7 +18,7 @@ export const LESSONS = {
     check: 'If 10% is ₹80, another 5% is ₹40. Together, 15% is ₹120.'
   },
   ratios: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Think in equal-sized parts',
     summary: 'A 3:2 ratio means five equal parts in total—not three things and two things of any size.',
     visual: 'ratio-bars',
@@ -30,7 +30,7 @@ export const LESSONS = {
     check: 'Scaling both sides preserves the relationship: 3:2 = 6:4 = 24:16.'
   },
   grammar: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Find the sentence anchor',
     summary: 'In error spotting, do not trust sound alone. Find the subject, time signal, or fixed expression that controls the form.',
     visual: 'sentence-map',
@@ -42,7 +42,7 @@ export const LESSONS = {
     check: 'Read the sentence without the middle phrase: “The list was posted.”'
   },
   'averages-mixtures': {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Turn every average back into a total',
     summary: 'Averages combine safely only after each group is converted to its total value. Group size is the weight.',
     visual: 'concept-map',
@@ -54,7 +54,7 @@ export const LESSONS = {
     check: 'Never average two group averages directly unless both groups contain the same number of values.'
   },
   ages: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Keep one present-age anchor',
     summary: 'Represent present ages first. Moving to the past or future changes every person by the same number of years.',
     visual: 'concept-map',
@@ -66,7 +66,7 @@ export const LESSONS = {
     check: 'Age ratios change over time, but the difference between two people’s ages does not.'
   },
   'profit-loss': {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Name the percentage base',
     summary: 'Profit and loss use cost price as the base. Discount uses marked price. Keep those prices distinct.',
     visual: 'concept-map',
@@ -78,7 +78,7 @@ export const LESSONS = {
     check: 'Two successive percentage changes use multipliers; their rates should not simply be added.'
   },
   'time-work': {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Combine work rates, not completion times',
     summary: 'If a person finishes in t days, their one-day rate is 1/t of the work. Rates add when people work together.',
     visual: 'concept-map',
@@ -90,7 +90,7 @@ export const LESSONS = {
     check: 'For equally efficient workers on fixed work, workers × days remains constant.'
   },
   series: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Test a pattern across every gap',
     summary: 'One pair can suggest many rules. Compare differences, ratios, and alternating positions before extending a series.',
     visual: 'concept-map',
@@ -102,7 +102,7 @@ export const LESSONS = {
     check: 'If one rule does not fit every visible term, check odd and even positions as separate sequences.'
   },
   coding: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Write each coding operation in order',
     summary: 'Coding questions become manageable when shifts, reversals, and position rules are applied one step at a time.',
     visual: 'concept-map',
@@ -114,7 +114,7 @@ export const LESSONS = {
     check: 'When a rule says reverse then shift, changing that order usually produces a different code.'
   },
   syllogisms: {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Accept only what must follow',
     summary: 'Translate each statement into containment, overlap, or separation. Do not add existence or reverse a relationship.',
     visual: 'concept-map',
@@ -126,7 +126,7 @@ export const LESSONS = {
     check: '“All A are B” does not mean “All B are A,” and it does not prove that any A exists.'
   },
   'sentence-correction': {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Let one grammar rule control the edit',
     summary: 'Locate the subject, time marker, pronoun role, modifier, or parallel structure before comparing replacements.',
     visual: 'concept-map',
@@ -138,7 +138,7 @@ export const LESSONS = {
     check: 'Read the whole corrected sentence once more to ensure the replacement did not create a second error.'
   },
   'para-jumbles': {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: 'Follow references and purpose',
     summary: 'A coherent paragraph introduces an idea, develops it through reference or cause, and closes with a result or implication.',
     visual: 'concept-map',
@@ -158,7 +158,7 @@ function genericLesson(topic) {
     'Check the result against the original wording before choosing an answer.'
   ];
   return {
-    eyebrow: 'Concept lab · 2 minutes',
+    eyebrow: 'Field Guide · 2 minutes',
     title: `Build the ${topic.name} method`,
     summary: topic.description,
     visual: 'concept-map',
@@ -175,7 +175,8 @@ const REVIEW_INTERVALS = [1, 3, 7, 14, 30];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function ensureProgress(user) {
-  user.progress ??= { journeyXp: 0, petals: 0, weeklyDays: [], topics: {} };
+  user.progress ??= { journeyXp: 0, petals: 0, weeklyDays: [], seals: {}, topics: {} };
+  user.progress.seals ??= {};
   user.progress.topics ??= {};
   for (const topic of TOPICS) {
     user.progress.topics[topic.id] = {
@@ -501,8 +502,10 @@ export function completeMission(user, mission) {
   const completionBonus = attempts.length ? 3 : 0;
   user.progress.petals += completionBonus;
   user.progress.journeyXp += completionBonus * 5;
+  const sealsAwarded = awardSeals(user);
 
   return {
+    sealsAwarded,
     questions: attempts.length,
     correct,
     accuracy: attempts.length ? Math.round((correct / attempts.length) * 100) : 0,
@@ -543,8 +546,8 @@ export function recommendationFor(user) {
     return {
       type: 'review',
       topicId: due.id,
-      title: `Review ${due.name}`,
-      reason: `This review is due because your last ${due.name.toLowerCase()} practice is ready for retrieval.`,
+      title: `Revisit the ${due.name} waypoint`,
+      reason: `This waypoint is due because your last ${due.name.toLowerCase()} practice is ready for retrieval.`,
       duration: '6 min'
     };
   }
@@ -556,8 +559,8 @@ export function recommendationFor(user) {
     return {
       type: 'recovery',
       topicId: weakest.id,
-      title: `Repair ${weakest.name}`,
-      reason: `A repeated ${misconception.replaceAll('-', ' ')} pattern makes this the most useful next step.`,
+      title: `Repair the ${weakest.name} route`,
+      reason: `A repeated ${misconception.replaceAll('-', ' ')} false trail makes this the most useful next step.`,
       duration: '5 min'
     };
   }
@@ -573,7 +576,7 @@ export function recommendationFor(user) {
   return {
     type: 'daily',
     topicId: weakest.id,
-    title: 'Start today’s Daily Bloom',
+    title: 'Start today’s Daily Expedition',
     reason: state.attempts ? `${weakest.name} is recommended because it has the most room to grow.` : `Begin with ${weakest.name} to create your first mastery signal.`,
     duration: '7 min'
   };
@@ -617,6 +620,7 @@ export function dashboardFor(user) {
   return {
     topics,
     recommendation: recommendationFor(user),
+    seals: sealProgress(user),
     dueReviews,
     overall: {
       mastery: overallMastery,
@@ -651,17 +655,17 @@ export function dashboardFor(user) {
 export function missionPayload(mission, questions, user) {
   const topic = TOPICS.find((candidate) => candidate.id === mission.topicId) || weakestTopic(user);
   const titles = {
-    daily: 'Daily Bloom',
-    diagnostic: 'Starting-point check',
-    topic: `${topic.name} Focus Run`,
-    review: 'Due review',
-    recovery: `${topic.name} Recovery Mission`
+    daily: 'Daily Expedition',
+    diagnostic: 'Route survey',
+    topic: `${topic.name} Focus Trail`,
+    review: 'Waypoint Revisit',
+    recovery: `${topic.name} Route Repair`
   };
   return {
     id: mission.id,
     type: mission.type,
     title: titles[mission.type] || 'Learning mission',
-    subtitle: mission.type === 'diagnostic' ? 'A calm estimate—not an intelligence label.' : 'Understand first. Build pace later.',
+    subtitle: mission.type === 'diagnostic' ? 'A calm estimate—not an intelligence label.' : 'Chart the method first. Build pace later.',
     topicId: topic.id,
     expectedMinutes: Math.max(4, Math.ceil(questions.length * 0.8)),
     lesson: mission.type === 'diagnostic' ? null : (LESSONS[topic.id] || genericLesson(topic)),
@@ -683,6 +687,112 @@ export function selectAssessmentQuestions(user) {
   return selected;
 }
 
+export const ATLAS_SEALS = Object.freeze([
+  {
+    id: 'first-route',
+    name: 'First Route Charted',
+    requirement: 'Answer one question correctly in any route.',
+    satisfied: (signals) => signals.correctAnswers > 0
+  },
+  {
+    id: 'false-trail-repairer',
+    name: 'False-Trail Repairer',
+    requirement: 'Solve an alternate route after a wrong turn.',
+    satisfied: (signals) => signals.repairedTrails > 0
+  },
+  {
+    id: 'three-regions',
+    name: 'Three-Region Explorer',
+    requirement: 'Attempt at least one route in every region.',
+    satisfied: (signals) => signals.regionsCharted === signals.regionCount
+  },
+  {
+    id: 'route-mapped',
+    name: 'Route Mapped',
+    requirement: 'Reach 60% mastery on any route.',
+    satisfied: (signals) => signals.bestMastery >= 60
+  },
+  {
+    id: 'landmark-restored',
+    name: 'Landmark Restored',
+    requirement: 'Master one route across multiple sessions.',
+    satisfied: (signals) => signals.restoredRoutes > 0
+  },
+  {
+    id: 'recall-keeper',
+    name: 'Recall Keeper',
+    requirement: 'Recall a waypoint correctly and leave no waypoint overdue.',
+    satisfied: (signals) => signals.reviewsCompleted > 0 && signals.dueReviews === 0
+  },
+  {
+    id: 'readiness-beacon',
+    name: 'Placement Pathfinder',
+    requirement: 'Light one readiness beacon with published timed evidence.',
+    satisfied: (signals) => signals.litBeacons > 0
+  },
+  {
+    id: 'steady-rhythm',
+    name: 'Steady Expedition Rhythm',
+    requirement: 'Complete your weekly learning-day target once.',
+    satisfied: (signals) => signals.weeklyCompleted >= signals.weeklyGoal
+  },
+  {
+    id: 'cartographer',
+    name: 'Twelve-Path Cartographer',
+    requirement: 'Chart all twelve routes at least once.',
+    satisfied: (signals) => signals.chartedRoutes === signals.totalRoutes
+  }
+]);
+
+function sealSignals(user) {
+  const attempts = (user.attempts || []).filter((attempt) => !attempt.isRetry);
+  const topics = topicProgress(user);
+  const domains = [...new Set(TOPICS.map((topic) => topic.domain))];
+  const weekStart = Date.now() - 7 * DAY_MS;
+  return {
+    attempted: attempts.length,
+    totalRoutes: topics.length,
+    chartedRoutes: topics.filter((topic) => topic.attempts > 0).length,
+    restoredRoutes: topics.filter((topic) => topic.state === 'mastered').length,
+    bestMastery: Math.max(0, ...topics.map((topic) => topic.mastery)),
+    litBeacons: topics.filter((topic) => topic.readiness > 0).length,
+    dueReviews: topics.filter((topic) => topic.reviewDue && new Date(topic.reviewDue) <= new Date()).length,
+    correctAnswers: attempts.filter((attempt) => attempt.correct).length,
+    repairedTrails: TOPICS.reduce((sum, topic) => sum + (user.progress.topics[topic.id].retriesSucceeded || 0), 0),
+    reviewsCompleted: new Set(
+      attempts.filter((attempt) => attempt.mode === 'review' && attempt.correct).map((attempt) => attempt.missionId)
+    ).size,
+    regionCount: domains.length,
+    regionsCharted: domains.filter((domain) => topics.some((topic) => topic.domain === domain && topic.attempts > 0)).length,
+    weeklyCompleted: [...new Set((user.progress.weeklyDays || []).filter((date) => new Date(date).getTime() >= weekStart))].length,
+    weeklyGoal: user.settings?.weeklyGoal || 4
+  };
+}
+
+export function awardSeals(user) {
+  ensureProgress(user);
+  const signals = sealSignals(user);
+  const awarded = [];
+  for (const seal of ATLAS_SEALS) {
+    if (user.progress.seals[seal.id]) continue;
+    if (!seal.satisfied(signals)) continue;
+    user.progress.seals[seal.id] = new Date().toISOString();
+    awarded.push({ id: seal.id, name: seal.name, requirement: seal.requirement });
+  }
+  return awarded;
+}
+
+export function sealProgress(user) {
+  ensureProgress(user);
+  return ATLAS_SEALS.map((seal) => ({
+    id: seal.id,
+    name: seal.name,
+    requirement: seal.requirement,
+    earned: Boolean(user.progress.seals[seal.id]),
+    earnedAt: user.progress.seals[seal.id] || null
+  }));
+}
+
 export function assessmentSignals(review, blueprint = 'topic-sample-v2') {
   const isTopicSample = blueprint === 'topic-sample-v2';
   const byTopic = TOPICS.map((topic) => {
@@ -693,15 +803,15 @@ export function assessmentSignals(review, blueprint = 'topic-sample-v2') {
     const signal = total === 0 ? 'not-sampled' : total === 1 ? 'single-item' : 'multi-item';
     let nextAction;
     if (signal === 'not-sampled') {
-      nextAction = 'This path was not sampled in this sprint; use a Focus Run to create evidence.';
+      nextAction = 'This path was not sampled in this sprint; use a Focus Trail to create evidence.';
     } else if (signal === 'single-item') {
       nextAction = correct
         ? 'One sampled item held; keep practising before treating this as a stable trend.'
-        : 'One sampled item needs review; use an untimed Focus Run for stronger evidence.';
+        : 'One sampled item needs review; use an untimed Focus Trail for stronger evidence.';
     } else {
       nextAction = accuracy >= 75
         ? `${correct} of ${total} sampled items held; keep building evidence before treating this as a stable trend.`
-        : `${total - correct} of ${total} sampled items need review; use an untimed Focus Run next.`;
+        : `${total - correct} of ${total} sampled items need review; use an untimed Focus Trail next.`;
     }
     return { topicId: topic.id, name: topic.name, correct, total, accuracy, signal, nextAction };
   }).filter((signal) => isTopicSample || signal.total > 0);

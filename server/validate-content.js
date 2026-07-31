@@ -3,11 +3,14 @@ import { TOPIC_CATALOG } from './catalog.js';
 import { GENERATED_QUESTIONS, GENERATED_QUESTION_COUNTS } from './question-generators.js';
 import { QUESTIONS, contentSummary, evaluateAnswer, publicQuestion } from './questions.js';
 import {
+  ATLAS_SEALS,
   LESSONS,
   TOPICS,
   applyAttempt,
   assessmentSignals,
+  awardSeals,
   dashboardFor,
+  sealProgress,
   selectAssessmentQuestions,
   selectMissionQuestions
 } from './learning.js';
@@ -44,6 +47,7 @@ function freshUser() {
       journeyXp: 0,
       petals: 0,
       weeklyDays: [],
+      seals: {},
       topics: Object.fromEntries(TOPICS.map((topic) => [topic.id, newTopicState()]))
     },
     attempts: []
@@ -327,5 +331,81 @@ assert.equal(migratedDatabase.schemaVersion, 2);
 assert.equal(legacyReadinessUser.progress.topics.percentages.readinessEvidence, 1);
 assert.equal(legacyReadinessUser.progress.topics.ratios.readinessEvidence, 1);
 assert.equal(dashboardFor(legacyReadinessUser).overall.readiness, 30, 'A zero-readiness topic with published evidence must remain in the denominator');
+
+const sealUser = freshUser();
+const initialSeals = sealProgress(sealUser);
+assert.equal(initialSeals.length, ATLAS_SEALS.length, 'Every atlas seal must be reported');
+assert.deepEqual(initialSeals.filter((seal) => seal.earned).map((seal) => seal.id), [], 'A new explorer must not hold any seal');
+assert.ok(initialSeals.every((seal) => seal.name && seal.requirement), 'Seals must disclose their requirement');
+
+const sealById = (user, id) => sealProgress(user).find((seal) => seal.id === id);
+
+sealUser.progress.topics.percentages.attempts = 2;
+sealUser.attempts.push({ questionId: 'pct-001', topicId: 'percentages', mode: 'daily', correct: false, isRetry: false, missionId: 'seal-daily' });
+awardSeals(sealUser);
+assert.equal(sealById(sealUser, 'first-route').earned, false, 'An incorrect attempt must not earn First Route Charted');
+
+sealUser.attempts.push({ questionId: 'pct-002', topicId: 'percentages', mode: 'daily', correct: true, isRetry: false, missionId: 'seal-daily' });
+awardSeals(sealUser);
+assert.equal(sealById(sealUser, 'first-route').earned, true, 'A correct attempt must earn First Route Charted');
+assert.equal(sealById(sealUser, 'recall-keeper').earned, false, 'Practice alone must not earn Recall Keeper');
+
+sealUser.attempts.push({ questionId: 'pct-003', topicId: 'percentages', mode: 'review', correct: false, isRetry: false, missionId: 'seal-review-failed' });
+awardSeals(sealUser);
+assert.equal(sealById(sealUser, 'recall-keeper').earned, false, 'A failed retrieval must not earn Recall Keeper');
+
+sealUser.attempts.push({ questionId: 'pct-004', topicId: 'percentages', mode: 'review', correct: true, isRetry: false, missionId: 'seal-review' });
+const awarded = awardSeals(sealUser);
+assert.ok(awarded.some((seal) => seal.id === 'recall-keeper'), 'A correct waypoint revisit with nothing overdue must earn Recall Keeper');
+assert.ok(sealById(sealUser, 'recall-keeper').earnedAt, 'Awarded seals must persist an earned timestamp');
+
+sealUser.progress.topics.percentages.reviewDue = new Date(Date.now() - 86_400_000).toISOString();
+sealUser.settings.weeklyGoal = 7;
+assert.equal(sealById(sealUser, 'recall-keeper').earned, true, 'A persisted seal must never un-earn');
+assert.equal(awardSeals(sealUser).length, 0, 'Seals must not be awarded twice');
+
+const repairUser = freshUser();
+repairUser.progress.topics.ratios.retriesSucceeded = 1;
+awardSeals(repairUser);
+assert.equal(sealById(repairUser, 'false-trail-repairer').earned, true, 'A successful alternate route must earn False-Trail Repairer');
+
+const mappedSealUser = freshUser();
+mappedSealUser.progress.topics.ratios.mastery = 60;
+awardSeals(mappedSealUser);
+assert.equal(sealById(mappedSealUser, 'route-mapped').earned, true, 'Route Mapped must match its stated 60% mastery requirement');
+
+const unawardedUser = freshUser();
+unawardedUser.progress.topics.ratios.mastery = 60;
+assert.equal(sealById(unawardedUser, 'route-mapped').earned, false, 'Seals must only report persisted awards');
+
+const pilotSealUser = freshUser();
+pilotSealUser.progress.topics.ages.mastery = 50;
+applyAttempt(pilotSealUser, GENERATED_QUESTIONS.find((question) => question.topicId === 'ages'), {
+  correct: true,
+  hintCount: 0,
+  isRetry: false,
+  mode: 'assessment',
+  responseMs: 1000,
+  missionId: 'pilot-seal-check'
+});
+awardSeals(pilotSealUser);
+assert.equal(sealById(pilotSealUser, 'readiness-beacon').earned, false, 'Pilot evidence must not earn the readiness beacon seal');
+
+const dashboardSeals = dashboardFor(freshUser()).seals;
+assert.equal(dashboardSeals.length, ATLAS_SEALS.length, 'The dashboard must expose seal progress for the client');
+
+const legacyUser = freshUser();
+delete legacyUser.progress.seals;
+legacyUser.progress.topics.grammar.mastery = 70;
+legacyUser.attempts.push({ questionId: 'grm-001', topicId: 'grammar', mode: 'daily', correct: true, isRetry: false, missionId: 'legacy' });
+const migratedSealDatabase = migrateDatabase({ schemaVersion: 1, users: { legacy: legacyUser } });
+assert.equal(migratedSealDatabase.schemaVersion, 2);
+assert.equal(sealById(legacyUser, 'first-route').earned, true, 'Migration must backfill seals already satisfied by existing evidence');
+assert.ok(sealById(legacyUser, 'first-route').earnedAt, 'Backfilled seals must persist a timestamp');
+
+const currentSchemaUser = freshUser();
+currentSchemaUser.attempts.push({ questionId: 'pct-001', topicId: 'percentages', mode: 'daily', correct: true, isRetry: false, missionId: 'already-migrated' });
+migrateDatabase({ schemaVersion: 2, users: { current: currentSchemaUser } });
+assert.equal(sealById(currentSchemaUser, 'first-route').earned, false, 'Reading an already-migrated database must not award seals outside session-end moments');
 
 console.log(`Validated ${QUESTIONS.length} questions across ${TOPICS.length} topics: ${summary.published} published, ${summary.pilot} pilot.`);

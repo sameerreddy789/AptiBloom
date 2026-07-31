@@ -1,6 +1,4 @@
 const paths = {
-  leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 18 2 18 2c1 6-1 12-7 14"/><path d="M2 21c0-3 1.85-5.36 5.08-6.94C9.8 12.73 12 10 13 8"/>',
-  home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
   book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
   chart: '<path d="M3 3v18h18"/><path d="m7 16 4-5 4 3 5-7"/>',
   timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M9 2h6"/>',
@@ -42,10 +40,22 @@ const paths = {
   percent: '<circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/><path d="M6 18 18 6"/>',
   scale: '<path d="m16 16 3-8 3 8a5 5 0 0 1-6 0ZM2 16l3-8 3 8a5 5 0 0 1-6 0Z"/><path d="M7 21h10M12 3v18M3 7h18"/>',
   type: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
-  sprout: '<path d="M7 20h10"/><path d="M12 20v-8"/><path d="M12 12C8 12 5 9 5 5c4 0 7 3 7 7Z"/><path d="M12 16c0-4 3-7 7-7 0 4-3 7-7 7Z"/>',
   checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
   alertCircle: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
-  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5.2-5.2 2 2-5.2z"/>',
+  map: '<path d="m9 4 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14M15 6v14"/>',
+  route: '<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18h4a3 3 0 0 0 3-3V8.5"/>',
+  waypoint: '<path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
+  beacon: '<path d="M12 3v4"/><path d="M8.5 21h7l-1.5-9h-4z"/><path d="M6.2 6.2 4 4M17.8 6.2 20 4M4 11H2M22 11h-2"/>',
+  landmark: '<path d="m12 3 8 6H4z"/><path d="M6 9v9M18 9v9M10 18v-5h4v5"/><path d="M3 21h18"/>',
+  mountain: '<path d="m3 20 6.5-11 4 6 2.5-3.5L21 20z"/><path d="m8 13 2-3"/>',
+  trees: '<path d="M8 3l4 6H4z"/><path d="M8 8l4 6H4z"/><path d="M8 14v7"/><path d="M17 21v-6"/><path d="M17 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>',
+  archive: '<rect width="18" height="5" x="3" y="3" rx="1.5"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  seal: '<circle cx="12" cy="9" r="6"/><path d="m9 13.6-1 7.4 4-2.4 4 2.4-1-7.4"/><path d="m10.2 9 1.3 1.4L14 7.8"/>',
+  footsteps: '<path d="M6 4c1.7 0 2.5 1.4 2.5 3S8 11 6.5 11 4 9.6 4 8s.3-4 2-4Z"/><path d="M5 13h3l-.4 5.5A1.6 1.6 0 0 1 6 20a1.6 1.6 0 0 1-1.6-1.7z"/><path d="M17.5 6c1.7 0 2 2.4 2 4s-1 3-2.5 3S15 11.6 15 10s.8-4 2.5-4Z"/><path d="M16 15h3l-.4 5.3A1.6 1.6 0 0 1 17 22a1.6 1.6 0 0 1-1.6-1.7z"/>',
+  fog: '<path d="M4 9h11M6 13h13M4 17h10"/><path d="M18 9h2M9 17h2"/>',
+  telescope: '<path d="m14 3 6 2-2 5-6-2z"/><path d="m12 8 5 1.6"/><path d="M3.5 11.5 12 8l1.5 4.4-8.6 3.3a2 2 0 0 1-1.4-3.8Z"/><path d="M9 15.5 7 21M13 14l3 7"/>'
 };
 
 export function icon(name, size = 20, className = '') {
@@ -54,5 +64,5 @@ export function icon(name, size = 20, className = '') {
 }
 
 export function logoMark(size = 38) {
-  return `<span class="brand-mark" style="--mark-size:${size}px" aria-hidden="true">${icon('sprout', Math.round(size * 0.64))}</span>`;
+  return `<span class="brand-mark" style="--mark-size:${size}px" aria-hidden="true">${icon('compass', Math.round(size * 0.64))}</span>`;
 }

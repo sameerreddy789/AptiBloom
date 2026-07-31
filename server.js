@@ -30,6 +30,7 @@ import {
   TOPICS,
   applyAttempt,
   assessmentSignals,
+  awardSeals,
   completeMission,
   dashboardFor,
   missionPayload,
@@ -494,6 +495,7 @@ async function handleApi(request, response, url) {
       }
       user.attempts = user.attempts.slice(-2000);
 
+      const sealsAwarded = awardSeals(user);
       const { byTopic, byDomain, readinessPolicy } = assessmentSignals(review, assessment.blueprint || 'prototype-mixed-v1');
       const correct = review.filter((item) => item.correct).length;
       assessment.submittedAt = isoNow();
@@ -507,6 +509,7 @@ async function handleApi(request, response, url) {
         byTopic,
         byDomain,
         readinessPolicy,
+        sealsAwarded,
         readiness: topicProgress(user).map((topic) => ({ topicId: topic.id, name: topic.name, mastery: topic.mastery, readiness: topic.readiness })),
         nextRecommendation: recommendationFor(user),
         review
